@@ -1,0 +1,229 @@
+---
+title: Frontend
+description: Build generative UIs with real-time streaming from LangChain agents, LangGraph graphs, and custom APIs
+---
+
+The `useStream` hook provides seamless integration with LangGraph streaming capabilities. It handles all the complexities of streaming, state management, and branching logic, letting you focus on building great generative UI experiences.
+
+<Note>
+While `useStream` is currently available for React via `@langchain/langgraph-sdk/react`, we are actively working on framework-specific packages including `@langchain/react`, `@langchain/vue`, and more. These packages will provide first-class support for each framework's patterns and conventions.
+</Note>
+
+## Installation
+
+Install the LangGraph SDK to use the `useStream` hook in your React application:
+
+
+
+## Basic usage
+
+The `useStream` hook connects to any streaming API—whether that's a LangGraph agent running on a local server, a deployed LangSmith agent, or your own custom API endpoint.
+
+```tsx
+import { useStream } from "@langchain/langgraph-sdk/react";
+
+function Chat() {
+  const stream = useStream({
+    assistantId: "agent",
+    // Local development
+    apiUrl: "http://localhost:2024",
+    // Production deployment (LangSmith hosted)
+    // apiUrl: "https://your-deployment.us.langgraph.app"
+  });
+
+  const handleSubmit = (message: string) => {
+    stream.submit({ messages: [{ content: message, type: "human" }] });
+  };
+
+  return (
+    <div>
+      {stream.messages.map((message, idx) => (
+        <div key={message.id ?? idx}>
+          {message.type}: {message.content}
+        </div>
+      ))}
+
+      {stream.isLoading && <div>Loading...</div>}
+      {stream.error && <div>Error: {stream.error.message}</div>}
+    </div>
+  );
+}
+```
+
+<Tip>
+Learn how to [deploy your agents to LangSmith](/oss/python/langchain/deploy) for production-ready hosting with built-in observability, authentication, and scaling.
+</Tip>
+
+<Accordion title="useStream parameters">
+
+<ParamField body="assistantId" type="string" required>
+    The ID of the agent to connect to. When using LangSmith deployments, this must match the agent ID shown in your deployment dashboard. For custom API deployments or local development, this can be any string that your server uses to identify the agent.
+</ParamField>
+
+<ParamField body="apiUrl" type="string">
+    The URL of the LangGraph server. Defaults to `http://localhost:2024` for local development.
+</ParamField>
+
+<ParamField body="apiKey" type="string">
+    API key for authentication. Required when connecting to deployed agents on LangSmith.
+</ParamField>
+
+<ParamField body="threadId" type="string">
+    Connect to an existing thread instead of creating a new one. Useful for resuming conversations.
+</ParamField>
+
+<ParamField body="onThreadId" type="(id: string) => void">
+    Callback invoked when a new thread is created. Use this to persist the thread ID for later use.
+</ParamField>
+
+<ParamField body="onError" type="(error: Error) => void">
+    Callback invoked when an error occurs during streaming.
+</ParamField>
+
+<ParamField body="onFinish" type="(state: StateType) => void">
+    Callback invoked when the stream completes successfully with the final state.
+</ParamField>
+
+<ParamField body="onCustomEvent" type="(data: unknown, context: { mutate }) => void">
+    Handle custom events emitted from your agent using the `writer`. See [Custom streaming events](#custom-streaming-events).
+</ParamField>
+
+<ParamField body="onUpdateEvent" type="(data: unknown, context: { mutate }) => void">
+    Handle state update events for advanced use cases.
+</ParamField>
+
+<ParamField body="messagesKey" type="string" default="messages">
+    The key in the graph state that contains the messages array.
+</ParamField>
+
+<ParamField body="throttle" type="boolean" default="true">
+    Batch state updates for better rendering performance. Disable for immediate updates.
+</ParamField>
+
+<ParamField body="initialValues" type="StateType | null">
+    Initial state values to display while the first stream is loading.
+</ParamField>
+
+</Accordion>
+
+<Accordion title="useStream return values">
+
+<ParamField body="messages" type="Message[]">
+    All messages in the current thread, including both human and AI messages.
+</ParamField>
+
+<ParamField body="values" type="StateType">
+    The current graph state values. Type is inferred from the agent or graph type parameter.
+</ParamField>
+
+<ParamField body="isLoading" type="boolean">
+    Whether a stream is currently in progress. Use this to show loading indicators.
+</ParamField>
+
+<ParamField body="error" type="Error | null">
+    Any error that occurred during streaming. `null` when no error.
+</ParamField>
+
+<ParamField body="interrupt" type="Interrupt | undefined">
+    Current interrupt requiring user input, such as human-in-the-loop approval requests.
+</ParamField>
+
+<ParamField body="toolCalls" type="ToolCallWithResult[]">
+    All tool calls across all messages, with their results and state (`pending`, `completed`, or `error`).
+</ParamField>
+
+<ParamField body="submit" type="(input, options?) => Promise<void>">
+    Submit new input to the agent. Pass `null` as input when resuming from an interrupt with a command.
+</ParamField>
+
+<ParamField body="stop" type="() => void">
+    Stop the current stream immediately.
+</ParamField>
+
+<ParamField body="getToolCalls" type="(message) => ToolCall[]">
+    Get all tool calls for a specific AI message.
+</ParamField>
+
+<ParamField body="getMessagesMetadata" type="(message) => MessageMetadata">
+    Get metadata for a message, including streaming info like `langgraph_node` for identifying the source node.
+</ParamField>
+
+</Accordion>
+
+## Type-safe streaming
+
+The `useStream` hook supports full type inference when used with agents created via @[`createAgent`] or graphs created with [`StateGraph`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.StateGraph). Pass `typeof agent` or `typeof graph` as the type parameter to automatically infer tool call types.
+
+### With `createAgent`
+
+When using @[`createAgent`], tool call types are automatically inferred from the tools you register to your agent:
+
+
+
+### With `StateGraph`
+
+For custom [`StateGraph`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.StateGraph) applications, the state types are inferred from the graph's annotation:
+
+
+
+## Rendering tool calls
+
+Use `getToolCalls` to extract and render tool calls from AI messages. Tool calls include the call details, result (if completed), and state.
+
+
+
+## Custom streaming events
+
+Stream custom data from your agent using the `writer` in your tools or nodes. Handle these events in the UI with the `onCustomEvent` callback.
+
+
+
+## Multi-agent streaming
+
+When working with multi-agent systems or graphs with multiple nodes, use message metadata to identify which node generated each message. This is particularly useful when multiple LLMs run in parallel and you want to display their outputs with distinct visual styling.
+
+
+
+## Human-in-the-loop
+
+Handle interrupts when the agent requires human approval for tool execution.
+
+
+
+## Reasoning models
+
+<Warning>
+Extended reasoning/thinking support is currently experimental. The streaming interface for reasoning tokens varies by provider (OpenAI vs Anthropic) and may change as we develop better abstractions.
+</Warning>
+
+When using models with extended reasoning capabilities (like OpenAI's reasoning models or Anthropic's extended thinking), the thinking process is embedded in the message content. You'll need to extract and display it separately.
+
+
+
+## Custom state types
+
+For custom LangGraph applications, embed your tool call types in your state's messages property.
+
+
+
+## Custom transport
+
+For custom API endpoints or non-standard deployments, use the `transport` option with `FetchStreamTransport` to connect to any streaming API.
+
+
+
+## Related
+
+- [Streaming overview](/oss/python/langchain/streaming/overview) — Server-side streaming with LangChain agents
+- [Agent Chat UI](/oss/python/langchain/ui) — Pre-built chat interface for LangGraph agents
+- [Human-in-the-loop](/oss/python/langchain/human-in-the-loop) — Configuring interrupts for human review
+- [Multi-agent systems](/oss/python/langchain/multi-agent) — Building agents with multiple LLMs
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/streaming/frontend.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+</Tip>
